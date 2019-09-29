@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -16,6 +17,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.Swagger;
 using Swashbuckle.AspNetCore.SwaggerGen;
+using ChenpionPMS.Models;
 
 namespace ChenpionPMS
 {
@@ -28,10 +30,45 @@ namespace ChenpionPMS
 
         public IConfiguration Configuration { get; }
 
+        private bool IsSqlite()
+        {
+            return "Sqlite".Equals(Configuration.GetValue("DatabaseEngine", ""));
+        }
+
+        private bool IsMySQL()
+        {
+            return "MySQL".Equals(Configuration.GetValue("DatabaseEngine", ""));
+        }
+
+        private string ConnectionString()
+        {
+            return Configuration.GetConnectionString("DefaultConnection");
+        }
+
+        private void SetupDbContextOptions(DbContextOptionsBuilder options)
+        {
+            if (IsSqlite())
+            {
+                options.UseSqlite(ConnectionString());
+            }
+            else if (IsMySQL())
+            {
+                options.UseMySql(ConnectionString());
+            }
+            else
+            {
+                options.UseInMemoryDatabase(databaseName: "ChenpionPMS_DB");
+            }
+        }
+
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddDbContext<DatabaseContext>(options => SetupDbContextOptions(options));
+
             services.AddMvc().SetCompatibilityVersion(CompatibilityVersion.Version_2_2);
+
+            services.AddHttpContextAccessor();
 
             services.AddApiVersioning(options =>
             {
@@ -68,7 +105,7 @@ namespace ChenpionPMS
                     { "Bearer", Enumerable.Empty<string>() },
                 });
             });
-    }
+        }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IHostingEnvironment env, IApiVersionDescriptionProvider provider)
